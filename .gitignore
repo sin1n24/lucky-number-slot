@@ -2,3 +2,4 @@
 verify*.png
 .playwright-mcp/
 srv.log
+ogp_gen.html
