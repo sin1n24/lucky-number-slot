@@ -1,0 +1,4 @@
+# 作業・検証用の生成物
+verify*.png
+.playwright-mcp/
+srv.log

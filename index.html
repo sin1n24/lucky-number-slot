@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>かじた式スロット</title>
+<!-- ▼ Googleアナリティクス GA4：下の GA_ID を自分の測定ID（G-から始まる）に書き換えるだけで有効化されます -->
+<script>
+  const GA_ID = "G-XXXXXXXXXX"; // ← ここを差し替える
+  if (GA_ID && GA_ID !== "G-XXXXXXXXXX") {
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
+    document.head.appendChild(s);
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function(){ dataLayer.push(arguments); };
+    gtag('js', new Date());
+    gtag('config', GA_ID);
+  }
+</script>
+<style>
+  :root{
+    --bg:#0a0c12;
+    --panel:#12151f;
+    --gold:#f5c542;
+    --gold-2:#ffe9a3;
+    --red:#e0344b;
+    --green:#39d353;
+    --green-dim:#1f6f33;
+    --rare:#ff5db1;
+    --cell:clamp(82px,21vmin,158px);
+    --ink:#e7e9ef;
+    --muted:#8b93a7;
+  }
+  *{box-sizing:border-box;}
+  *{ -webkit-user-select:none; -moz-user-select:none; -ms-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  ::selection{background:transparent;color:inherit;}
+  ::-moz-selection{background:transparent;color:inherit;}
+  html,body{margin:0;padding:0;background:
+      radial-gradient(1200px 600px at 50% -10%,#1a1f30 0%,var(--bg) 60%);
+      color:var(--ink);
+      font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,system-ui,sans-serif;
+      -webkit-tap-highlight-color:transparent;}
+  body{min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:18px 14px 40px;}
+
+  .title{
+    text-align:center;margin:6px 0 2px;font-weight:900;
+    font-size:clamp(26px,7vw,52px);letter-spacing:.04em;line-height:1.05;
+    background:linear-gradient(180deg,var(--gold-2),var(--gold) 55%,#b8860b);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 2px 0 rgba(0,0,0,.4);
+  }
+  .subtitle{color:var(--muted);font-size:13px;letter-spacing:.3em;margin-bottom:18px;text-align:center;}
+
+  .machine{
+    width:min(560px,100%);background:linear-gradient(180deg,#1b2030,#0e1019);
+    border:2px solid #2a3146;border-radius:22px;padding:22px 18px 20px;
+    box-shadow:0 18px 50px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.05);
+    position:relative;
+  }
+  .reels{display:flex;gap:12px;justify-content:center;}
+  .reel{
+    position:relative;width:min(30%,150px);height:var(--cell);overflow:hidden;
+    background:linear-gradient(180deg,#05060a,#171b28 50%,#05060a);
+    border:2px solid #3a445e;border-radius:14px;cursor:pointer;
+    box-shadow:inset 0 12px 18px rgba(0,0,0,.8),inset 0 -12px 18px rgba(0,0,0,.8);
+    transition:border-color .2s, box-shadow .2s;
+  }
+  .reel:hover{border-color:var(--gold);}
+  .reel.tapped{border-color:var(--red);box-shadow:0 0 0 2px var(--red),0 0 24px rgba(224,52,75,.65);animation:tapwiggle .35s ease;}
+  .reel.tapped .hint{opacity:1;color:#ff8a98;font-weight:800;}
+  @keyframes tapwiggle{0%{transform:scale(1)}30%{transform:scale(.95)}60%{transform:scale(1.03)}100%{transform:scale(1)}}
+  .reel.stopped{border-color:var(--gold);box-shadow:inset 0 0 0 1px rgba(245,197,66,.4),0 0 18px rgba(245,197,66,.25);}
+  .reel.rare{border-color:var(--rare);box-shadow:0 0 26px rgba(255,93,177,.6);}
+  .reel.super{border-color:var(--gold);box-shadow:0 0 34px rgba(255,215,0,.85);}
+  .reel::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(180deg,rgba(0,0,0,.55),transparent 28%,transparent 72%,rgba(0,0,0,.55));}
+  .reel .hint{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:11px;color:var(--muted);z-index:3;pointer-events:none;letter-spacing:.15em;}
+  .reel.stopped .hint,.reel.spinning .hint{opacity:0;}
+  .strip{will-change:transform;}
+  .strip .num{
+    height:var(--cell);display:flex;align-items:center;justify-content:center;
+    font-weight:900;font-size:calc(var(--cell)*.64);line-height:1;
+    color:#fff;font-feature-settings:"tnum";
+    text-shadow:0 0 10px rgba(245,197,66,.25);
+  }
+
+  .controls{display:flex;justify-content:center;gap:12px;margin-top:18px;}
+  button.btn{
+    font-family:inherit;font-weight:800;cursor:pointer;border:none;border-radius:12px;
+    padding:13px 22px;font-size:16px;letter-spacing:.08em;color:#1a1205;
+    background:linear-gradient(180deg,var(--gold-2),var(--gold));
+    box-shadow:0 6px 0 #9c7611,0 10px 18px rgba(0,0,0,.4);
+    transition:transform .05s, box-shadow .05s;
+  }
+  button.btn:active{transform:translateY(4px);box-shadow:0 2px 0 #9c7611,0 4px 8px rgba(0,0,0,.4);}
+  button.btn.ghost{background:#1c2233;color:var(--ink);box-shadow:0 6px 0 #0c0f18;}
+  button.btn:disabled{opacity:.45;cursor:not-allowed;}
+
+  .result{
+    width:min(560px,100%);margin-top:18px;min-height:84px;text-align:center;
+    opacity:0;transform:translateY(8px);transition:opacity .4s,transform .4s;
+  }
+  .result.show{opacity:1;transform:none;}
+  .result .lead{font-size:clamp(24px,6vw,38px);font-weight:900;color:var(--gold);
+    text-shadow:0 0 16px rgba(245,197,66,.4);}
+  .result .reason{font-size:clamp(15px,4vw,20px);margin-top:8px;color:var(--ink);line-height:1.6;}
+  .result .reason b{color:var(--gold-2);}
+
+  .rareBanner{
+    display:none;margin:6px auto 0;width:min(560px,100%);text-align:center;
+    font-weight:900;font-size:clamp(22px,6vw,40px);letter-spacing:.1em;
+    color:#fff;padding:10px;border-radius:14px;
+    background:linear-gradient(90deg,#ff2e88,#ff5db1,#ffb86c,#ff5db1,#ff2e88);
+    background-size:300% 100%;animation:rareflow 1.4s linear infinite, rarepop .5s ease;
+    box-shadow:0 0 40px rgba(255,93,177,.7);
+  }
+  .rareBanner.show{display:block;}
+  .rareBanner small{display:block;font-size:clamp(13px,3.5vw,18px);font-weight:700;margin-top:4px;}
+  .rareBanner.super{
+    background:linear-gradient(90deg,#ffd700,#fff6c0,#ff7ae0,#7af0ff,#fff6c0,#ffd700);
+    background-size:400% 100%;animation:rareflow 1.1s linear infinite, rarepop .5s ease;
+    color:#3a2a00;box-shadow:0 0 60px rgba(255,215,0,.9);border:2px solid #fff;
+    font-size:clamp(24px,7vw,46px);
+  }
+  @keyframes rareflow{to{background-position:300% 0;}}
+  @keyframes rarepop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);
+    background:#1c2233;color:var(--ink);border:1px solid var(--gold);border-radius:12px;
+    padding:12px 20px;font-weight:700;font-size:14px;opacity:0;pointer-events:none;z-index:50;
+    box-shadow:0 10px 30px rgba(0,0,0,.5);transition:opacity .25s,transform .25s;max-width:90vw;text-align:center;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  body.flash{animation:flash .5s ease;}
+  @keyframes flash{0%,100%{background-color:transparent}30%{background-color:rgba(255,93,177,.18)}}
+
+  /* dot grid */
+  .stats{width:min(560px,100%);margin-top:34px;}
+  .stats h2{font-size:13px;letter-spacing:.25em;color:var(--muted);font-weight:700;margin:0 0 10px;text-align:center;}
+  .dots{display:grid;grid-template-columns:repeat(50,1fr);gap:2px;
+    background:#0c0f18;border:1px solid #232a3d;border-radius:10px;padding:8px;}
+  .dot{aspect-ratio:1/1;background:#161b29;border-radius:2px;transition:transform .15s;}
+  .dot.seen{background:var(--green);}
+  .dot.seen.rare{background:var(--rare);}
+  .dot.seen.super{background:var(--gold);box-shadow:0 0 4px var(--gold);}
+  .dot.now{outline:2px solid #fff;outline-offset:0;transform:scale(1.9);z-index:2;position:relative;}
+  .legend{display:flex;justify-content:center;gap:18px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block;}
+  .count{text-align:center;margin-top:12px;font-size:clamp(16px,4.5vw,22px);font-weight:800;}
+  .count.count-tier{margin-top:4px;font-size:clamp(14px,4vw,19px);}
+  .count .n{color:var(--green);}
+  .count .r{color:var(--rare);}
+  .count .sr{color:var(--gold);}
+  .reset-seen{display:block;margin:10px auto 0;font-size:12px;color:var(--muted);background:none;border:none;text-decoration:underline;cursor:pointer;}
+
+  .share{margin-top:26px;}
+  .credit{margin-top:30px;text-align:center;font-size:12px;color:var(--muted);line-height:1.8;}
+  .credit a{color:var(--gold);text-decoration:none;}
+  .credit a:hover{text-decoration:underline;}
+  .credit .ver{color:#5b677e;font-weight:700;letter-spacing:.05em;}
+
+  @media (max-width:560px){
+    .dots{grid-template-columns:repeat(40,1fr);}
+  }
+</style>
+</head>
+<body>
+  <h1 class="title">かじた式スロット</h1>
+  <div class="subtitle">YOUR LUCKY NUMBER</div>
+
+  <div class="machine">
+    <div class="reels" id="reels"></div>
+    <div class="controls">
+      <button class="btn" id="action">ストップ</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="rareBanner" id="rareBanner"></div>
+
+  <div class="result" id="result"></div>
+
+  <div class="share">
+    <button class="btn" id="share">結果をシェア</button>
+  </div>
+
+  <div class="stats">
+    <h2>出た組み合わせの記録（全1000通り）</h2>
+    <div class="dots" id="dots"></div>
+    <div class="legend">
+      <span><i style="background:#161b29"></i>まだ</span>
+      <span><i style="background:var(--green)"></i>出た</span>
+      <span><i style="background:var(--rare)"></i>レア</span>
+      <span><i style="background:var(--gold)"></i>スーパーレア</span>
+    </div>
+    <div class="count">
+      <span class="n" id="cnt">0</span><span> / 1000</span>
+    </div>
+    <div class="count count-tier">
+      <span style="color:var(--muted)">★SR </span><span class="sr" id="srcnt">000 / 000</span>
+      <span style="color:var(--muted)">　・　レア </span><span class="r" id="rcnt">000 / 000</span>
+    </div>
+    <button class="reset-seen" id="resetSeen">記録をリセット</button>
+  </div>
+
+  <div class="credit">
+    <span class="ver">v6</span>　製作：<a href="https://sin1.studio" target="_blank" rel="noopener">sin1's studio</a>
+    　着想元：<a id="videoLink" href="https://www.youtube.com/watch?v=v_2kKa40tvM" target="_blank" rel="noopener">わしゃがなTV</a>
+  </div>
+
+<script>
+/* ====== 差し替え用URL ====== */
+const STUDIO_URL = "https://sin1.studio";
+const VIDEO_URL  = "https://www.youtube.com/watch?v=v_2kKa40tvM"; // わしゃがなTV 該当動画
+
+/* ====== 語呂合わせ基本マップ（例: 014→おいし / 087→おはな） ====== */
+const KANA = ['お','い','に','さ','し','こ','む','な','は','く'];
+/* 別読み候補（辞書マッチ用）。多モーラ読みも混ぜて1000通りの当たりを増やす */
+const ALT = [
+  ['お','ま','わ','れ','ぜ'],            //0
+  ['い','ひ','わ','ぴ','いち'],          //1
+  ['に','ふ','じ','つ'],                //2
+  ['さ','み','ざ','す','さん'],          //3
+  ['し','よ','ほ','よん'],              //4
+  ['こ','ご','い','いつ'],              //5
+  ['む','ろ','り','ろく'],              //6
+  ['な','ち','せ','しち'],              //7
+  ['は','ば','や','ぱ','ほ'],            //8
+  ['く','ぐ','こ','きゅう','ここ'],      //9
+];
+
+/* ====== 言葉辞書（読み → [表示語, ポジティブ文]） ====== */
+const DICT = {
+  'おいし':['おいしい','とってもおいしい予感。幸せが口いっぱいに広がりますね'],
+  'おはな':['おはな','花は人をやさしい気持ちにしてくれますね'],
+  'おはし':['おはし','日本の食卓に欠かせない、ていねいな暮らしの数字'],
+  'おやこ':['おやこ','家族のぬくもりに包まれる、あたたかい数字ですね'],
+  'ひみつ':['ひみつ','内緒ごとはワクワクの源。胸が高鳴りますね'],
+  'おはなし':['おはなし','物語は心を豊かにしてくれますね'],
+  'はやし':['はやし','森林浴のように癒やされる響きです'],
+  'みやこ':['みやこ','華やかな都へようこそ。出世運も上々です'],
+  'ふじさん':['ふじさん','日本一の山。これ以上ない縁起のよさ！'],
+  'こころ':['こころ','心は何よりの宝物。豊かな一日になりそう'],
+  'なごや':['なごや','味噌煮込みが食べたくなる、元気いっぱいの響き'],
+  'ひよこ':['ひよこ','ふわふわ可愛い、これから羽ばたく成長の数字'],
+  'ふくろ':['ふくろ','福を入れて持ち歩く、金運アップの縁起袋ですね'],
+  'すしや':['すしや','お寿司は最高のごちそう。今日はいいことありそう'],
+  'やさい':['やさい','健康のもと。体も心もすこやかになりますね'],
+  'さしみ':['さしみ','新鮮そのもの。みずみずしい毎日が待っています'],
+  'よろし':['よろし','「よろしく」の心。良いご縁が結ばれそうです'],
+  'いちば':['いちば','活気あふれる市場のように、出会いが弾みます'],
+  'いちじ':['いちじ','時は大切に。今このときが宝物ですね'],
+  'ひつじ':['ひつじ','数えるほどに安らぐ、ぐっすり眠れる癒やしの数字'],
+  'みつば':['みつば','四つ葉まであと一歩。幸運がすぐそこに'],
+  'はなし':['はなし','話に花が咲く、にぎやかで楽しい一日に'],
+  'やまみ':['やまみ','山の恵みのように、実りある日々になりますね'],
+  'にこにこ':['にこにこ','笑顔があふれる、最高にごきげんな数字'],
+  'におい':['におい','いい香りに包まれて、心までふんわりほどける幸せな数字'],
+  'はいく':['はいく','五・七・五に想いをのせて。風流な心が育つ数字'],
+  'こいし':['こいし','恋しい人を想う、胸きゅんのときめきナンバー'],
+  'いこい':['いこい','ほっとひと息、憩いのひとときをくれる数字'],
+  'いいこ':['いいこ','よく頑張ってます。今日もいい子、いい一日になりそう'],
+  'いいな':['いいな','思わず「いいな」とうらやまれる、ツイてる数字'],
+  'はなこ':['はなこ','どこか懐かしく親しみあふれる、看板娘の数字'],
+  'くいな':['くいな','水辺をゆく鳥のように、のびやかに進める数字'],
+  'ひより':['ひより','お出かけ日和。何ごとも順調に進む、晴れやかな数字'],
+  'なごみ':['なごみ','ほっと和む、癒やしに満ちた数字ですね'],
+  'まつり':['まつり','わっしょい！心が躍る、お祭り気分の数字'],
+  'ほまれ':['ほまれ','誉れ高く、まわりから一目置かれる数字'],
+  'いやし':['いやし','ささくれた心も、すっと癒やされる数字'],
+  'にこり':['にこり','思わずにっこり、自然と笑顔になれる数字'],
+  'やすみ':['やすみ','しっかり休んで英気を養える、ごほうびの数字'],
+  'すなお':['すなお','素直な心が幸せを呼ぶ、まっすぐな数字'],
+  'やさし':['やさし','やさしさがあふれ出す、あたたかい数字'],
+  'ふわり':['ふわり','ふわりと心が軽くなる、やさしい数字'],
+  'おしお':['お塩','ひと振りで料理が引き立つ味の決め手。お清めにもなる縁起の数字'],
+  'おしい':['おしい','おいしいまであと一歩、伸びしろ満点の数字'],
+  'おこし':['おこし','ようこそお越しを。良縁とお客が舞い込む数字'],
+  'おにい':['お兄い','頼れるお兄さん登場。面倒見のいい、心強い数字'],
+  'おには':['鬼は外','鬼は外、福は内。厄を払って福を呼び込む数字'],
+  'おにく':['お肉','がっつり食べてスタミナ満点。精のつく数字'],
+  'おくに':['お国','ふるさとに想いを馳せる、郷土愛あふれる数字'],
+  'おむこ':['お婿','良縁来たる。素敵なお相手が見つかる数字'],
+  'おはは':['おはは','笑い声の絶えない、笑う門には福来る数字'],
+  'なおし':['治し','悪いところがすっと整う、リセットの数字'],
+  'いいし':['いい医師','頼れる名医のように、信頼を集める数字'],
+  'こはく':['琥珀','琥珀色に輝く、美しく価値ある宝石の数字'],
+  'つばさ':['翼','翼を広げて羽ばたく、飛躍の数字'],
+  'ばなな':['バナナ','南国気分で元気はじける、栄養満点の数字'],
+  'まぐろ':['鮪','大トロみたいに福がたっぷりのった数字'],
+  'いわし':['鰯','群れをなして福を運ぶ、たくましい青魚の数字'],
+  'いちご':['苺','甘酸っぱく幸せ実る、みんな大好きな数字'],
+};
+
+/* ====== 番号で直接引く当て字辞書（最優先・すべてレア扱い） ====== */
+const DICT_NUM = {
+  // ===== 0始まり =====
+  '000':['オールゼロ','何にでもなれる、すべてが始まる無限大の数字'],
+  '013':['おいさん','気のいい「おいさん」みたいに、親しみやすい数字'],
+  '014':['おいしい','とってもおいしい予感。幸せが口いっぱいに広がる数字'],
+  '016':['お披露目','晴れの舞台が似合う、注目を集めるお披露目の数字'],
+  '023':['お福','お福さん招来。福々しい笑顔があふれる数字'],
+  '031':['お財布','お財布あたたか。やりくり上手で金運上向きの数字'],
+  '032':['おみつ','甘い蜜のような「おみつ」さん、ほっこり和む数字'],
+  '036':['おさむ','芯の通った「おさむ」さんのように、頼れる安心感の数字'],
+  '038':['お土産','旅の思い出と福を持ち帰る、お土産の数字'],
+  '042':['おしづ','物静かで奥ゆかしい「おしづ」さんの数字'],
+  '045':['お仕事','お仕事が順調にはかどる、実り多き働きの数字'],
+  '046':['お城','どっしり構える名城のように、揺るがぬ風格の数字'],
+  '047':['お品','上品な「お品」が薫る、たしなみある数字'],
+  '051':['お恋','濃いご縁、深まる恋の予感の数字'],
+  '053':['おゴミ','いらない物を手放して運気スッキリ、断捨離の数字'],
+  '062':['おむつ','すくすく育つ赤ちゃんのように、これから伸びる数字'],
+  '064':['お虫','小さな虫にも福が宿る、生命力あふれる数字'],
+  '072':['おなつ','夏のように明るい「おなつ」さん、元気な数字'],
+  '073':['おなみ','寄せては返す波のように、リズムよく進む数字'],
+  '075':['おなご','凛とした「おなご」、芯の強い数字'],
+  '082':['おやつ','ほっとひと息、しあわせ広がるおやつの数字'],
+  '083':['親父','背中で語る親父のように、頼れる懐の深い数字'],
+  '084':['おはし','日本の食卓に欠かせない、ていねいな暮らしの数字'],
+  '086':['おはる','春のようにあたたかい「おはる」さん、和む数字'],
+  '087':['おはな','花は人をやさしい気持ちにしてくれる数字'],
+  '089':['お薬','心も体もふっと軽くなる、お役立ちの数字'],
+  '093':['奥さん','家庭を明るく照らす、しっかり者の奥さんの数字'],
+  '095':['お米','一粒一粒に感謝。実り豊かなお米の数字'],
+  // ===== 1始まり =====
+  '100':['ヒャク','百点満点！何事も満たされる、文句なしの数字'],
+  '102':['豆腐','柔らかくも栄養満点、健やかさを育む豆腐の数字'],
+  '103':['瞳','きらきら輝く瞳のように、希望を映す数字'],
+  '108':['煩悩','百八の煩悩も払えば心スッキリ、除夜の鐘の数字'],
+  '110':['伊藤','頼れる「伊藤さん」のように、信頼を集める数字'],
+  '111':['いちばん','何でも一番！願いが一直線に叶う数字'],
+  '114':['いいよ','「いいよ」とそっと背中を押される、心が軽くなる数字'],
+  '117':['いいな','思わず「いいな」とうらやまれる、ツイてる数字'],
+  '123':['一二三','一・二・三とテンポよく進む、勢いに乗る数字'],
+  '124':['必要','あなたが必要とされる、頼りにされる数字'],
+  '134':['いさよ','しとやかな「いさよ」さん、品のある数字'],
+  '141':['いしい','親しみやすい「石井さん」のように、人に恵まれる数字'],
+  '142':['石津','しっかり者の「石津さん」、堅実で頼れる数字'],
+  '143':['愛しさ','愛しさがあふれる、心あたたまる数字'],
+  '147':['いしな','良い品定め、目利きが冴える数字'],
+  '154':['いこい','ほっとひと息、憩いのひとときをくれる数字'],
+  '163':['ひろみ','広い心の「ひろみ」さん、おおらかな数字'],
+  '164':['ひろし','心ひろし。おおらかで頼れる「ひろし」の数字'],
+  '168':['いろは','物事の基本「いろは」。一から幸せが広がる数字'],
+  '173':['いなみ','実り豊かな「いなみ」さん、おだやかな数字'],
+  '174':['いなし','上手にいなして波に乗る、柔軟でしなやかな数字'],
+  '187':['いやな','嫌なことも笑い飛ばせる、たくましい数字'],
+  '193':['一休','とんちで切り抜ける、ひと休みで福を呼ぶ数字'],
+  '194':['いくよ','さあ行くよ！前へ進む勢いの数字'],
+  '196':['いくろ','こつこつ重ねて大輪へ、育ちゆく数字'],
+  // ===== 2始まり =====
+  '210':['ニート','充電中も悪くない、エネルギーを蓄える数字'],
+  '213':['にいさん','頼れる「お兄さん」登場。面倒見のいい数字'],
+  '214':['にいよ','新たな世へ、フレッシュに踏み出す数字'],
+  '222':['ふふふ','ふふふ…と微笑む、余裕たっぷりの数字'],
+  '223':['ふじさん','日本一の山。これ以上ない縁起のよさ！'],
+  '224':['ふふよ','ふふっと笑う良き世、和やかな数字'],
+  '226':['二二六','歴史が動いた二・二六、時代を変える力の数字'],
+  '232':['ふみつ','文を綴るように、想いが実る数字'],
+  '233':['ふみみ','耳を澄ませば福の音、感性ゆたかな数字'],
+  '234':['ふみよ','たおやかで品のある「ふみよ」さんの数字'],
+  '238':['ふみや','知的で頼れる「ふみや」さんの数字'],
+  '241':['西','西から良き風が吹く、福を呼ぶ方角の数字'],
+  '252':['にこにこ','笑顔が連鎖する、最高にごきげんな数字'],
+  '254':['にこし','にっこり来し方をふり返る、満ち足りた数字'],
+  '263':['鶴見','鶴のように気高い「鶴見」、縁起のいい数字'],
+  '272':['船津','港を守る「船津さん」、頼もしい数字'],
+  '273':['船見','船出を見守る「船見さん」、見守りの数字'],
+  '274':['ふなし','ご当地の人気者みたいに、みんなに愛される数字'],
+  '291':['福井','「福」が湧く、恐竜も眠る福井の数字'],
+  '293':['含み','含み益たっぷり、伸びしろ満点の数字'],
+  '294':['ふくよか','ふくよかに満ち足りる、ゆとりある数字'],
+  '296':['ふくろう','「不苦労」とも書く縁起の鳥。苦労知らずで福を招く数字'],
+  // ===== 3始まり =====
+  '312':['みいづ','満ちて出づる、勢いあふれる数字'],
+  '315':['さいこう','文句なしの最高潮。何もかも上向く数字'],
+  '316':['三色','三色そろって彩り豊か、にぎやかな数字'],
+  '317':['ミーナ','明るく場を照らす「ミーナ」さんの数字'],
+  '325':['三つ子','三倍のにぎやかさ、福が三つ子でやってくる数字'],
+  '327':['みつな','蜜のように甘い縁、結ばれる数字'],
+  '333':['さんさん','太陽がさんさんと降りそそぐ、明るく輝く数字'],
+  '334':['さみし','寂しさのあとには、きっといい出会いが待っている数字'],
+  '341':['差し入れ','うれしい差し入れ、人の優しさに包まれる数字'],
+  '342':['指図','段取り上手、采配が冴える数字'],
+  '345':['さしご','三・四・五と一段ずつ、着実に昇る階段の数字'],
+  '346':['さしろ','真っさらから築く城、地力の数字'],
+  '347':['さしな','良い品を選び抜く、目利きの数字'],
+  '358':['さごはち','開運の三五八(さごはち)。あらゆる運が味方する数字'],
+  '369':['弥勒','五十六億年後に世を救う、弥勒菩薩の数字'],
+  '371':['見ない','見て見ぬふりも時に優しさ、おおらかな数字'],
+  '372':['美夏','夏が似合う「美夏」さん、輝く数字'],
+  '373':['みなみ','あたたかい南風のような「みなみ」さんの数字'],
+  '374':['みなし','見なし満点、ポジティブ評価の数字'],
+  '375':['みなこ','明るく場を照らす「みなこ」さんのような数字'],
+  '391':['サクい','サクっと軽快、ノリのいい数字'],
+  '393':['さくみ','花咲く「さくみ」さん、華やかな数字'],
+  '394':['さくよ','努力の花が咲くよ。きっと報われる予感の数字'],
+  // ===== 4始まり =====
+  '412':['よいづ','良い芽が出づる、好スタートの数字'],
+  '414':['いよいよ','いよいよ本番、運気が高まる数字'],
+  '415':['よいこ','よく頑張ってます。今日もいい子で、いい一日'],
+  '416':['良い路','良い路を進む、迷いなく前へ進む数字'],
+  '417':['良いな','「良いな」と憧れられる、ツキのある数字'],
+  '421':['よづい','夜が明け良い日、希望の数字'],
+  '423':['よつみ','四つ実る、収穫ゆたかな数字'],
+  '425':['四つ子','四倍の幸せ、にぎやかさ満点の数字'],
+  '428':['よつば','見つけたら幸運。四つ葉のクローバーの数字'],
+  '432':['よみつ','良い満ち足り、充実の数字'],
+  '438':['夜店','灯りともる夜宮・夜店、心はずむ数字'],
+  '444':['よよよ','代々(よよ)栄える、ご先祖様に守られた数字'],
+  '451':['すごい','思わず「すごい！」とうなる、底力を秘めた数字'],
+  '452':['しごに','仕事も人もまるく収まる、調和の数字'],
+  '456':['すごろく','上がりはもうすぐ、トントン拍子に進む数字'],
+  '459':['至極','至極まっとう、申し分ない数字'],
+  '461':['白い','まっさらな白いキャンバス、何でも描ける数字'],
+  '463':['白身','栄養満点の白身、健やかさの数字'],
+  '464':['よろし','「よろしく」の心。良いご縁が結ばれる数字'],
+  '474':['しなし','品定め上々、見立ての良い数字'],
+  '491':['良く言い','良く言えば長所だらけ、前向きな数字'],
+  '497':['良くなる','きっと良くなる、上向きの数字'],
+  // ===== 5始まり =====
+  '510':['ごとう','どっしり頼れる「後藤さん」のような、安定の数字'],
+  '512':['こいづ','濃い縁が出づる、ご縁の数字'],
+  '513':['こいさ','濃いさじ加減、味わい深い数字'],
+  '516':['恋路','濃い色に染まる恋路、ときめきの数字'],
+  '518':['小岩','下町の人情あふれる、小岩の元気な数字'],
+  '523':['小富士','故郷の小富士のように、心の支えになる数字'],
+  '524':['小文','小さな文に大きな想い、心通う数字'],
+  '525':['にこにこ','笑顔が連鎖する、最高にごきげんな数字'],
+  '526':['こじろ','一刀のもとに勝負を決める、剣豪「小次郎」の数字'],
+  '529':['小福','小さな福を積み重ねる、しあわせの数字'],
+  '531':['小才','気の利く小才、機転がきく数字'],
+  '532':['小蜜','ちいさな甘い秘密、心はずむ数字'],
+  '538':['小宮','名脇役「小宮さん」のように、場を支える数字'],
+  '541':['こしい','越し来たる福、めぐる運の数字'],
+  '542':['古地図','お宝眠る古地図、ロマンあふれる数字'],
+  '546':['古城','趣ある古城のように、風格ある数字'],
+  '556':['こころ','心は何よりの宝物。豊かな一日になりそう'],
+  '567':['コロナ','太陽のコロナのように、内から輝き出す数字'],
+  '573':['コナミ','名作を生み出す、遊び心あふれる数字'],
+  '593':['国民','みんなに愛される、国民的人気の数字'],
+  '594':['こくよ','こつこつ刻むよ。地道な努力がいつか実る数字'],
+  // ===== 6始まり =====
+  '601':['ろおい','老いてなお盛ん、年輪を重ねる数字'],
+  '612':['ろいづ','良い出会いが訪れる、ご縁の数字'],
+  '615':['ろいこ','良い子に育つ、すこやかな数字'],
+  '616':['色々','色々あって面白い、彩り豊かな数字'],
+  '622':['むふふ','むふふ…と顔がほころぶ、うれしい予感の数字'],
+  '623':['むふじ','無事これ名馬、すこやかに進む数字'],
+  '631':['むさい','ちょっとむさいくらいが味、憎めない数字'],
+  '634':['むさし','スカイツリーと同じ634m。天まで届く、剣豪武蔵の数字'],
+  '641':['むしい','蒸し蒸し元気、活力みなぎる数字'],
+  '645':['むしご','「むし(64)ご(5)の改新」。新しく生まれ変わる転機の数字'],
+  '646':['むしろ','むしろ好都合！ピンチも味方にする数字'],
+  '653':['むこさ','向こう三軒両隣、ご近所円満の数字'],
+  '666':['むむむ','むむむ…自分を生まれ変わらせるチャンスの数字'],
+  '671':['ルーデンマスク','伝説のシリアルナンバー671。選ばれし者だけが引ける一品'],
+  '673':['むなみ','胸高鳴る、ときめきの数字'],
+  '693':['浮腫み','むくみも流してスッキリ、めぐりの良い数字'],
+  // ===== 7始まり =====
+  '701':['直井','まっすぐな「直井さん」、誠実な数字'],
+  '710':['なっとう','ねばり強く健康的。粘り勝ちで成功をつかむ数字'],
+  '712':['ないづ','内に秘めた力が出づる、底力の数字'],
+  '714':['ないよ','心配ごとなんて無いよ、憂いなく進める数字'],
+  '715':['無い子','怖いもの無しの子、のびのび育つ数字'],
+  '716':['内路','近道の内路、スイスイ進む数字'],
+  '723':['なふじ','名を成す、名声へと続く数字'],
+  '724':['なつよ','夏のように明るい「なつよ」さんの、元気な数字'],
+  '732':['なみつ','並々ならぬ満ち足り、充実の数字'],
+  '738':['浪矢','願いを届ける浪矢のような、希望の数字'],
+  '741':['梨','みずみずしい梨のように、すっきり実る数字'],
+  '745':['ナシゴレン','食欲そそるナシゴレン、元気もりもりの数字'],
+  '746':['名城','堂々たる名城、揺るがぬ数字'],
+  '753':['しちごさん','七五三。子の成長を祝う、すこやかで晴れやかな数字'],
+  '772':['七つ','七つの福が集う、ラッキーの数字'],
+  '773':['ななみ','七つの海のように心広い、「ななみ」さんの数字'],
+  '774':['名無し','名もなき主人公、これから名を上げる数字'],
+  '777':['スリーセブン','大当たり！幸運が雪崩れ込む、王様の数字'],
+  // ===== 8始まり =====
+  '801':['はいい','「はいい！」と気持ちいい返事、好印象の数字'],
+  '812':['はいづ','這い出づる芽、成長はじまる数字'],
+  '814':['はいよ','「はいよ！」と気持ちいい返事、テンポよく進む数字'],
+  '815':['はいこ','灰から立ち上がる不死鳥、再起の数字'],
+  '816':['入ろう','さあ入ろう、新たな門出の数字'],
+  '821':['ハニー','あま〜いハニー。愛と幸せに満ちた甘い数字'],
+  '823':['はふじ','母なる富士、おおらかに包む数字'],
+  '834':['やさし','やさしさがあふれ出す、あたたかい数字'],
+  '845':['はしご','一段ずつ上る梯子のように、着実に高みへ昇る数字'],
+  '846':['はしろ','さあ走ろう、勢いに乗る数字'],
+  '853':['はこさ','宝箱を開ける、わくわくの数字'],
+  '870':['はなお','人と人を結ぶ鼻緒のように、ご縁をつなぐ数字'],
+  '872':['放つ','矢を放つように、夢へ一直線の数字'],
+  '873':['花見','満開の桜の下で乾杯、心華やぐ花見の数字'],
+  '884':['はやし','森林浴のように癒やされる、「林さん」の数字'],
+  '888':['ははは','笑う門には福来る。末広がりに福が広がる数字'],
+  '893':['やくざ','仁義に厚く漢気あふれる。困った人を放っておけない数字'],
+  // ===== 9始まり =====
+  '901':['暗い','暗い夜のあとには必ず夜明け、希望が昇る数字'],
+  '912':['クイズ','ひらめきが冴える、知的なクイズの数字'],
+  '915':['食い込む','上位に食い込む、勝負強い数字'],
+  '916':['悔い路','悔いも糧にして進む、成長の数字'],
+  '923':['くふじ','苦も富士のごとく乗り越える、不屈の数字'],
+  '931':['くさい','ちょっとクサいくらいが愛嬌。憎めない魅力の数字'],
+  '941':['悔しい','悔しさはバネ、伸びゆく数字'],
+  '946':['釧路','雄大な湿原広がる、北の大地・釧路の数字'],
+  '963':['くるみ','栄養たっぷりの胡桃のように、中身の詰まった数字'],
+  '973':['くなみ','並み居る強者をまとめる、頼れる数字'],
+  '999':['サンキュー','3つの9でサンキュー！感謝があふれ出す数字'],
+};
+
+/* ====== スーパーレア：誰もが一発で納得する超しっくり当て字＋ゾロ目・定番 ====== */
+const SUPER = new Set([
+  // ゾロ目
+  '000','111','222','333','444','555','666','777','888','999',
+  // 定番・特別
+  '893','358','671','168','525',
+  // 超しっくり語呂合わせ
+  '038','046','062','082','083','093',
+  '102','103','108','123','193',
+  '210','226','291',
+  '325','369','373',
+  '425','456','461',
+  '518','538','567','573',
+  '622','646',
+  '714','741','774',
+  '814','845','873',
+  '901','912','946',
+]);
+
+/* ====== フォールバック：読みの音から「ちなんだ」短いコメントを作る ====== */
+const THEME = {
+  'お':'おおらか','い':'いきいき','に':'にこにこ','さ':'さわやか','し':'しあわせ',
+  'こ':'ごきげん','む':'むてき','な':'なごやか','は':'はなやか','く':'くつろぎ',
+};
+function fallbackComment(r){
+  const a=THEME[r[0]]||'すこやか', b=THEME[r[1]]||'すこやか';
+  return `${a}で${b}な、いい数字`;
+}
+
+/* ====== レア番号（派手演出＋金色ドット＋最後の数字をゆっくり） ====== */
+const RARE = {
+  '000':'オールゼロ！すべてが始まる、無限の可能性を秘めた神聖な数字',
+  '111':'ピンゾロ！願いが一直線に叶う、一意専心のゾロ目',
+  '222':'トリプルツー！天使が見守る、最強の調和ナンバー',
+  '333':'みみみ！才能が一気に開花する、創造のゾロ目',
+  '444':'よよよ！ご先祖様が守ってくれる、堅実な強運の数字',
+  '555':'ゴーゴーゴー！金運が爆上がりする勝負のゾロ目',
+  '666':'むむむ！自分を生まれ変わらせる、変身のチャンス',
+  '777':'スリーセブン！幸運が雪崩れ込む、大当たりの王様',
+  '888':'ハッハッハ！末広がり、笑う門には福来るのゾロ目',
+  '999':'サンキュー！3つの9で感謝が極まる、運気は最高潮へ',
+  '893':'仁義に厚く、漢気あふれる。困った人を放っておけない数字',
+  '358':'最強の開運ナンバーが降臨。あらゆる運が味方します',
+  '525':'ニコニコ！笑顔が連鎖する、最高にごきげんな数字',
+  '168':'いちろくはち、末広がりに広がっていく、商売繁盛の数字',
+  '671':'ルーデンマスクのシリアルナンバー！選ばれし者だけが引ける伝説の一品',
+};
+
+/* ====== 言葉生成 ====== */
+function cartesian(arrs){
+  let res=[''];
+  for(const a of arrs){ const n=[]; for(const p of res) for(const x of a) n.push(p+x); res=n; }
+  return res;
+}
+function primaryReading(s){ return [...s].map(d=>KANA[+d]).join(''); }
+function hash(s){ let h=0; for(const c of s) h=(h*31+c.charCodeAt(0))>>>0; return h; }
+function getPhrase(s){
+  if(DICT_NUM[s]) return {word:DICT_NUM[s][0], comment:DICT_NUM[s][1], fallback:false};
+  const cands = cartesian([...s].map(d=>ALT[+d]));
+  for(const r of cands){ if(DICT[r]) return {word:DICT[r][0], comment:DICT[r][1], fallback:false}; }
+  const r = primaryReading(s);
+  return {word:r, comment:fallbackComment(r), fallback:true};
+}
+/* ティア判定：'super'＝スーパーレア / 'rare'＝レア（語呂・定型文ヒット） / null＝通常 */
+function rarityOf(c){
+  if(SUPER.has(c)) return 'super';
+  if(RARE[c] || !getPhrase(c).fallback) return 'rare';
+  return null;
+}
+function comboIsRare(c){ return rarityOf(c)!==null; }
+const pad3 = n=>String(n).padStart(3,'0');
+let superTotal=0, rareTotal=0;
+for(let n=0;n<1000;n++){ const t=rarityOf(pad3(n)); if(t==='super') superTotal++; else if(t==='rare') rareTotal++; }
+
+/* ====== Audio (WebAudio) ====== */
+let AC=null;
+function ac(){ if(!AC) AC=new (window.AudioContext||window.webkitAudioContext)(); if(AC.state==='suspended') AC.resume(); return AC; }
+function tone(freq,dur,type='square',vol=.18,when=0){
+  const c=ac(); const t=c.currentTime+when;
+  const o=c.createOscillator(), g=c.createGain();
+  o.type=type; o.frequency.setValueAtTime(freq,t);
+  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g).connect(c.destination); o.start(t); o.stop(t+dur+0.02);
+  return o;
+}
+function playSelect(){ tone(880,.08,'square',.16); tone(1320,.06,'square',.10,.02); }
+function playStop(){ const o=tone(440,.16,'triangle',.2); o.frequency.exponentialRampToValueAtTime(180,ac().currentTime+.16); }
+function playDecide(){ [523,659,784,1046].forEach((f,i)=>tone(f,.4,'triangle',.16,i*.07)); }
+function playRare(){
+  [523,659,784,1046,1318].forEach((f,i)=>tone(f,.5,'square',.14,i*.08));
+  [784,1046,1318,1568].forEach((f,i)=>tone(f,.6,'sawtooth',.08,.5+i*.09));
+}
+function playSuper(){
+  // レアより長く豪華なファンファーレ
+  [523,659,784,1046,1318,1568,2093].forEach((f,i)=>tone(f,.6,'square',.15,i*.09));
+  [659,880,1318,1760,2093].forEach((f,i)=>tone(f,.8,'sawtooth',.09,.7+i*.11));
+  [1046,1568,2093].forEach((f,i)=>tone(f,1.0,'triangle',.12,1.3+i*.14));
+}
+function playTick(){ tone(1200,.02,'square',.05); }
+
+/* ====== Reels ====== */
+const reelsEl=document.getElementById('reels');
+const REELN=3, REPEAT=60;
+const reels=[];
+for(let i=0;i<REELN;i++){
+  const r=document.createElement('div');
+  r.className='reel spinning'; r.dataset.i=i;
+  const strip=document.createElement('div'); strip.className='strip';
+  let html=''; for(let k=0;k<REPEAT*10;k++) html+=`<div class="num">${k%10}</div>`;
+  strip.innerHTML=html;
+  const hint=document.createElement('div'); hint.className='hint'; hint.textContent='TAP';
+  r.appendChild(strip); r.appendChild(hint);
+  reelsEl.appendChild(r);
+  reels.push({el:r,strip,pos:Math.random()*1000,speed:1700+Math.random()*300,
+              spinning:true,committed:false,finished:false,target:null,stopping:false});
+}
+let cellH=reels[0].el.getBoundingClientRect().height;
+function recalcCell(){ cellH=reels[0].el.getBoundingClientRect().height; }
+window.addEventListener('resize',recalcCell);
+
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  const cycle=cellH*10;
+  for(const r of reels){
+    if(r.spinning && !r.stopping){
+      r.pos += r.speed*dt;
+      r.strip.style.transform=`translateY(${-(r.pos%cycle)}px)`;
+    }
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+function easeOutQuart(t){ return 1-Math.pow(1-t,4); }
+function easeOutQuint(t){ return 1-Math.pow(1-t,5); }
+
+let committedCount=0, finishedCount=0;
+
+function stopReel(i, opts={}){
+  const r=reels[i];
+  if(r.committed) return;
+  r.committed=true; committedCount++;
+  r.target = (Math.random()*10|0);
+  r.value = r.target;
+
+  // この瞬間が「最後の1つ」なら、ティア判定して演出を強める
+  let duration=opts.duration||0.65, extra=opts.extra||3, slow=false;
+  if(committedCount===3){
+    const combo=reels.map(x=>x.target).join('');
+    const tier=rarityOf(combo);
+    if(tier==='super'){ duration=3.4; extra=7; slow=true; reels.forEach(x=>x.el.classList.add('super')); }
+    else if(tier==='rare'){ duration=2.6; extra=5; slow=true; reels.forEach(x=>x.el.classList.add('rare')); }
+  }
+  animateStop(r,duration,extra,slow);
+}
+
+function animateStop(r,duration,extra,slow){
+  r.spinning=false; r.stopping=true;
+  const cycle=cellH*10;
+  const cur=r.pos%cycle;
+  const targetOff=r.target*cellH;
+  const delta=((targetOff-cur+cycle)%cycle)+extra*cycle;
+  const start=performance.now();
+  const ease=slow?easeOutQuint:easeOutQuart;
+  let lastTick=-1;
+  function step(now){
+    let t=(now-start)/(duration*1000);
+    if(t>=1) t=1;
+    const off=cur+delta*ease(t);
+    r.strip.style.transform=`translateY(${-(off%cycle)}px)`;
+    const idx=Math.floor((off%cycle)/cellH);
+    if(idx!==lastTick){ lastTick=idx; if(t<0.96) playTick(); }
+    if(t<1){ requestAnimationFrame(step); }
+    else{
+      r.pos=off; r.stopping=false; r.finished=true;
+      r.el.classList.remove('spinning','tapped'); r.el.classList.add('stopped');
+      playStop();
+      finishedCount++;
+      if(finishedCount===REELN) finalize();
+    }
+  }
+  requestAnimationFrame(step);
+}
+
+/* クリック：選択音→0.5秒後にゆっくり停止 */
+reels.forEach((r,i)=>{
+  r.el.addEventListener('click',()=>{
+    if(!r.spinning || r.committed || r.pendingClick) return;
+    r.pendingClick=true;
+    r.el.classList.add('tapped');
+    r.el.querySelector('.hint').textContent='とまる…';
+    playSelect();
+    setTimeout(()=>stopReel(i),500);
+  });
+});
+
+/* 統合ボタン：回転中は「ストップ」（左から0.5秒ずつ順に停止）／確定後は「もう一回」 */
+const actionBtn=document.getElementById('action');
+let mode='spin';
+actionBtn.addEventListener('click',()=>{
+  if(mode==='spin'){
+    if(reels.every(r=>r.committed)) return;
+    playSelect();
+    actionBtn.disabled=true;
+    for(let i=0;i<REELN;i++){
+      setTimeout(()=>{ if(!reels[i].committed) stopReel(i); }, i*500);
+    }
+  }else{
+    reset();
+  }
+});
+
+/* ====== 結果確定 ====== */
+const resultEl=document.getElementById('result');
+const rareBanner=document.getElementById('rareBanner');
+let lastResult=null;
+
+function finalize(){
+  const combo=reels.map(r=>r.value).join('');
+  const {word,comment}=getPhrase(combo);
+  const tier=rarityOf(combo);
+  lastResult={combo,word,tier};
+
+  if(tier==='super'){
+    document.body.classList.remove('flash'); void document.body.offsetWidth;
+    document.body.classList.add('flash');
+    const msg = RARE[combo] ? RARE[combo] : `${word}！誰もが納得の超しっくり当て字`;
+    rareBanner.className='rareBanner super show';
+    rareBanner.innerHTML=`★★ スーパーレア！★★<small>「${combo}」 ${msg}</small>`;
+    playSuper();
+  }else if(tier==='rare'){
+    document.body.classList.remove('flash'); void document.body.offsetWidth;
+    document.body.classList.add('flash');
+    const msg = RARE[combo] || `特別な言葉「${word}」を引き当てました！`;
+    rareBanner.className='rareBanner show';
+    rareBanner.innerHTML=`★ レア！ ★<small>「${combo}」 ${msg}</small>`;
+    playRare();
+  }else{
+    rareBanner.className='rareBanner';
+    playDecide();
+  }
+
+  resultEl.innerHTML=
+    `<div class="lead">いい数字ですね！</div>`+
+    `<div class="reason">「${combo}」＝<b>「${word}」</b>${comment}</div>`;
+  resultEl.classList.add('show');
+
+  recordCombo(combo,tier);
+  mode='done';
+  actionBtn.textContent='もう一回';
+  actionBtn.classList.add('ghost');
+  actionBtn.disabled=false;
+}
+
+/* ====== もう一回 ====== */
+function reset(){
+  mode='spin';
+  actionBtn.textContent='ストップ';
+  actionBtn.classList.remove('ghost');
+  actionBtn.disabled=false;
+  resultEl.classList.remove('show');
+  rareBanner.className='rareBanner';
+  for(const r of reels){
+    r.spinning=true; r.committed=false; r.finished=false; r.stopping=false;
+    r.pendingClick=false; r.target=null; r.value=null;
+    r.speed=1700+Math.random()*300;
+    r.el.classList.remove('stopped','rare','super','tapped'); r.el.classList.add('spinning');
+    r.el.querySelector('.hint').textContent='TAP';
+  }
+  committedCount=0; finishedCount=0;
+  recalcCell();
+}
+
+/* ====== 1000ドット記録 ====== */
+const dotsEl=document.getElementById('dots');
+const cntEl=document.getElementById('cnt');
+const rcntEl=document.getElementById('rcnt');
+const srcntEl=document.getElementById('srcnt');
+const SEEN_KEY='mks_seen_v1';
+let seen=new Set(JSON.parse(localStorage.getItem(SEEN_KEY)||'[]'));
+const dotNodes=[];
+(function buildDots(){
+  const frag=document.createDocumentFragment();
+  for(let n=0;n<1000;n++){
+    const d=document.createElement('div');
+    const key=String(n).padStart(3,'0');
+    d.className='dot'; d.title=key;
+    if(seen.has(key)){ d.classList.add('seen'); const t=rarityOf(key); if(t) d.classList.add(t); }
+    frag.appendChild(d); dotNodes.push(d);
+  }
+  dotsEl.appendChild(frag);
+  updateCounts();
+})();
+function updateCounts(){
+  cntEl.textContent=seen.size;
+  let sc=0, rc=0;
+  for(const k of seen){ const t=rarityOf(k); if(t==='super') sc++; else if(t==='rare') rc++; }
+  srcntEl.textContent=`${pad3(sc)} / ${pad3(superTotal)}`;
+  rcntEl.textContent=`${pad3(rc)} / ${pad3(rareTotal)}`;
+}
+function recordCombo(combo,tier){
+  const idx=parseInt(combo,10);
+  seen.add(combo);
+  localStorage.setItem(SEEN_KEY,JSON.stringify([...seen]));
+  const d=dotNodes[idx];
+  d.classList.add('seen'); if(tier) d.classList.add(tier);
+  dotNodes.forEach(x=>x.classList.remove('now'));
+  d.classList.add('now');
+  d.scrollIntoView({block:'nearest',behavior:'smooth'});
+  updateCounts();
+}
+document.getElementById('resetSeen').addEventListener('click',()=>{
+  if(!confirm('出た組み合わせの記録をすべて消去しますか？')) return;
+  seen=new Set(); localStorage.removeItem(SEEN_KEY);
+  dotNodes.forEach(x=>x.classList.remove('seen','rare','super','now'));
+  updateCounts();
+});
+
+/* ====== シェア ====== */
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2800);
+}
+document.getElementById('share').addEventListener('click',async()=>{
+  const c=lastResult;
+  const tierTxt = c ? (c.tier==='super'?'しかも【スーパーレア】！！':(c.tier==='rare'?'しかも【レア】。':'')) : '';
+  const text = c
+    ? `「${c.combo}」…かじた式スロットが選んだこの数字、ただの偶然だと思いますか？${tierTxt}「${c.word}」——あなたが回すと、何が出る？`
+    : `かじた式スロットでいい数字を引きました！あなたの『いい数字』は何が出る？`;
+  const url=location.href;
+  // ① 端末ネイティブの共有（対応端末・httpsのみ）
+  if(navigator.share){
+    try{ await navigator.share({title:'かじた式スロット',text,url}); return; }
+    catch(e){ if(e && e.name==='AbortError') return; }
+  }
+  // ② Xの投稿画面を開く（ユーザー操作直後なのでブロックされにくい）
+  const tw=`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+  const w=window.open(tw,'_blank');
+  if(w){ toast('Xの投稿画面を開きました'); return; }
+  // ③ それも無理ならクリップボードへコピー
+  try{ await navigator.clipboard.writeText(text+'\n'+url); toast('シェア文をコピーしました！貼り付けて投稿してね'); }
+  catch(_){ toast('コピーできませんでした。手動でシェアしてね'); }
+});
+
+/* リンク確定 */
+document.querySelector('.credit a[href="https://sin1.studio"]').href=STUDIO_URL;
+document.getElementById('videoLink').href=VIDEO_URL;
+</script>
+</body>
+</html>
